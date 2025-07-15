@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>音声同期システム - ビジュアルエフェクト制御</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .container {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        h1 {
+            text-align: center;
+            color: #4CAF50;
+        }
+        .control-section {
+            margin: 20px 0;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 16px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+        .effect-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+            gap: 10px;
+            margin: 20px 0;
+        }
+        .effect-button {
+            padding: 15px 10px;
+            font-size: 14px;
+            background: #333;
+            color: #fff;
+            border: 2px solid #666;
+        }
+        .effect-button.active {
+            background: #FF6B6B;
+            border-color: #FF6B6B;
+        }
+        .status {
+            padding: 10px;
+            background: #333;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-family: monospace;
+        }
+        .permission-status {
+            background: #2d4a2d;
+            color: #90EE90;
+            padding: 8px;
+            border-radius: 3px;
+            margin: 5px 0;
+            font-size: 14px;
+        }
+        .permission-status.error {
+            background: #4a2d2d;
+            color: #FFB6C1;
+        }
+        .frequency-display {
+            font-size: 18px;
+            font-weight: bold;
+            color: #4CAF50;
+        }
+        .pattern-display {
+            font-family: monospace;
+            font-size: 16px;
+            color: #FFD700;
+        }
+        .mode-selector {
+            margin: 20px 0;
+        }
+        .mode-selector select {
+            padding: 10px;
+            font-size: 16px;
+            background: #333;
+            color: #fff;
+            border: 1px solid #666;
+            border-radius: 5px;
+        }
+        .visualization {
+            width: 100%;
+            height: 100px;
+            background: #000;
+            border: 1px solid #666;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .log {
+            background: #000;
+            color: #0f0;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>音声同期システム - ビジュアルエフェクト制御</h1>
+    
+    <div class="container">
+        <div class="mode-selector">
+            <label for="mode">モード選択: </label>
+            <select id="mode">
+                <option value="host">ホスト（送信）</option>
+                <option value="client">クライアント（受信）</option>
+            </select>
+        </div>
+        
+        <div id="hostMode" class="control-section">
+            <h2>ホスト制御</h2>
+            <div class="effect-grid" id="effectGrid"></div>
+            <button id="stopEffect">エフェクト停止</button>
+            <div class="status">
+                <div>送信周波数: <span class="frequency-display">19000 Hz</span></div>
+                <div>現在のパターン: <span class="pattern-display" id="currentPattern">未選択</span></div>
+            </div>
+        </div>
+        
+        <div id="clientMode" class="control-section" style="display: none;">
+            <h2>クライアント受信</h2>
+            <div class="permission-status" id="permissionStatus">マイクの権限: 未確認</div>
+            <button id="startListening">音声受信開始</button>
+            <button id="stopListening">音声受信停止</button>
+            <div class="status">
+                <div>受信状態: <span id="listeningStatus">停止中</span></div>
+                <div>検出されたエフェクト: <span class="frequency-display" id="detectedEffect">なし</span></div>
+                <div>検出閾値: <span id="threshold">120</span> 
+                    <input type="range" id="thresholdSlider" min="50" max="200" value="120" style="margin-left: 10px;">
+                </div>
+            </div>
+            <canvas class="visualization" id="visualizer"></canvas>
+        </div>
+        
+        <div class="status">
+            <h3>システムログ</h3>
+            <div class="log" id="log"></div>
+        </div>
+    </div>
+
+    <script>
+        class AudioSyncSystem {
+            constructor() {
+                this.audioContext = null;
+                this.oscillator = null;
+                this.gainNode = null;
+                this.isTransmitting = false;
+                this.isListening = false;
+                this.frequency = 18000; // 19kHz
+                this.bitDuration = 200; // 各ビットの持続時間（ミリ秒）
+                this.pauseDuration = 100; // ビット間の間隔
+                this.currentEffect = null;
+                this.analyser = null;
+                this.microphone = null;
+                this.dataArray = null;
+                this.canvas = null;
+                this.canvasCtx = null;
+                
+                // パターンデコード用の変数
+                this.detectionBuffer = [];
+                this.lastDetectionTime = 0;
+                this.detectionThreshold = 120; // 信号検出の閾値
+                this.preamblePattern = '10101'; // 同期用プリアンブル
+                this.receivingPattern = false;
+                this.receivedBits = '';
+                this.bitBuffer = [];
+                this.lastBitTime = 0;
+                this.microphonePermission = false;
+                
+                this.initializeUI();
+                this.setupEventListeners();
+                this.log('音声同期システムを初期化しました');
+            }
+            
+            initializeUI() {
+                // エフェクトボタンを生成
+                const effectGrid = document.getElementById('effectGrid');
+                for (let i = 0; i < 32; i++) {
+                    const button = document.createElement('button');
+                    button.className = 'effect-button';
+                    button.textContent = `FX${i + 1}`;
+                    button.onclick = () => this.selectEffect(i);
+                    effectGrid.appendChild(button);
+                }
+                
+                // キャンバスの設定
+                this.canvas = document.getElementById('visualizer');
+                this.canvasCtx = this.canvas.getContext('2d');
+                this.canvas.width = this.canvas.offsetWidth;
+                this.canvas.height = this.canvas.offsetHeight;
+            }
+            
+            setupEventListeners() {
+                document.getElementById('mode').addEventListener('change', (e) => {
+                    this.switchMode(e.target.value);
+                });
+                
+                document.getElementById('stopEffect').addEventListener('click', () => {
+                    this.stopTransmission();
+                });
+                
+                document.getElementById('startListening').addEventListener('click', () => {
+                    this.startListening();
+                });
+                
+                document.getElementById('stopListening').addEventListener('click', () => {
+                    this.stopListening();
+                });
+                
+                document.getElementById('thresholdSlider').addEventListener('input', (e) => {
+                    this.detectionThreshold = parseInt(e.target.value);
+                    document.getElementById('threshold').textContent = this.detectionThreshold;
+                });
+            }
+            
+            switchMode(mode) {
+                const hostMode = document.getElementById('hostMode');
+                const clientMode = document.getElementById('clientMode');
+                
+                if (mode === 'host') {
+                    hostMode.style.display = 'block';
+                    clientMode.style.display = 'none';
+                    this.stopListening();
+                } else {
+                    hostMode.style.display = 'none';
+                    clientMode.style.display = 'block';
+                    this.stopTransmission();
+                    this.updatePermissionStatus();
+                }
+            }
+            
+            updatePermissionStatus() {
+                const statusElement = document.getElementById('permissionStatus');
+                if (this.microphonePermission) {
+                    statusElement.textContent = 'マイクの権限: 許可済み';
+                    statusElement.className = 'permission-status';
+                } else {
+                    statusElement.textContent = 'マイクの権限: 未許可（受信開始時に要求されます）';
+                    statusElement.className = 'permission-status error';
+                }
+            }
+            
+            async selectEffect(effectId) {
+                if (this.currentEffect === effectId) return;
+                
+                this.currentEffect = effectId;
+                this.updateUI();
+                
+                // 5ビットのバイナリパターンを生成
+                const binaryPattern = effectId.toString(2).padStart(5, '0');
+                this.log(`エフェクト${effectId + 1}を選択 - パターン: ${binaryPattern}`);
+                
+                await this.transmitPattern(binaryPattern);
+            }
+            
+            async transmitPattern(pattern) {
+                if (this.isTransmitting) {
+                    this.stopTransmission();
+                }
+                
+                try {
+                    this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    this.isTransmitting = true;
+                    
+                    this.log(`パターン送信開始: ${pattern}`);
+                    
+                    // 同期用のプリアンブル（10101）を送信
+                    const preamble = '10101';
+                    await this.sendBits(preamble);
+                    
+                    // 実際のパターンを送信
+                    await this.sendBits(pattern);
+                    
+                    this.log('パターン送信完了');
+                    
+                } catch (error) {
+                    this.log(`送信エラー: ${error.message}`);
+                    this.isTransmitting = false;
+                }
+            }
+            
+            async sendBits(bits) {
+                for (let i = 0; i < bits.length; i++) {
+                    const bit = bits[i];
+                    
+                    if (bit === '1') {
+                        await this.playTone(this.frequency, this.bitDuration);
+                    } else {
+                        await this.silence(this.bitDuration);
+                    }
+                    
+                    // ビット間の間隔
+                    await this.silence(this.pauseDuration);
+                }
+            }
+            
+            async playTone(frequency, duration) {
+                return new Promise((resolve) => {
+                    if (!this.isTransmitting) {
+                        resolve();
+                        return;
+                    }
+                    
+                    const oscillator = this.audioContext.createOscillator();
+                    const gainNode = this.audioContext.createGain();
+                    
+                    oscillator.connect(gainNode);
+                    gainNode.connect(this.audioContext.destination);
+                    
+                    oscillator.frequency.value = frequency;
+                    oscillator.type = 'sine';
+                    
+                    gainNode.gain.value = 0.1; // 音量を小さく
+                    
+                    oscillator.start();
+                    oscillator.stop(this.audioContext.currentTime + duration / 1000);
+                    
+                    setTimeout(resolve, duration);
+                });
+            }
+            
+            async silence(duration) {
+                return new Promise((resolve) => {
+                    setTimeout(resolve, duration);
+                });
+            }
+            
+            stopTransmission() {
+                this.isTransmitting = false;
+                this.currentEffect = null;
+                this.updateUI();
+                this.log('送信を停止しました');
+            }
+            
+            async startListening() {
+                try {
+                    // マイクの権限を明示的に要求
+                    await this.requestMicrophonePermission();
+                    
+                    this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    
+                    const stream = await navigator.mediaDevices.getUserMedia({ 
+                        audio: {
+                            sampleRate: 48000,
+                            channelCount: 1,
+                            echoCancellation: false,
+                            noiseSuppression: false,
+                            autoGainControl: false
+                        }
+                    });
+                    
+                    this.microphone = this.audioContext.createMediaStreamSource(stream);
+                    this.analyser = this.audioContext.createAnalyser();
+                    
+                    this.analyser.fftSize = 2048;
+                    this.analyser.smoothingTimeConstant = 0.3;
+                    
+                    this.microphone.connect(this.analyser);
+                    
+                    const bufferLength = this.analyser.frequencyBinCount;
+                    this.dataArray = new Uint8Array(bufferLength);
+                    
+                    this.isListening = true;
+                    this.receivingPattern = false;
+                    this.receivedBits = '';
+                    this.bitBuffer = [];
+                    this.detectionBuffer = [];
+                    
+                    document.getElementById('listeningStatus').textContent = '受信中';
+                    
+                    this.log('音声受信を開始しました');
+                    this.analyzeAudio();
+                    
+                } catch (error) {
+                    this.log(`受信エラー: ${error.message}`);
+                    document.getElementById('listeningStatus').textContent = 'エラー';
+                }
+            }
+            
+            async requestMicrophonePermission() {
+                if (this.microphonePermission) return;
+                
+                try {
+                    const result = await navigator.permissions.query({ name: 'microphone' });
+                    
+                    if (result.state === 'granted') {
+                        this.microphonePermission = true;
+                        this.log('マイクの権限が既に許可されています');
+                        return;
+                    }
+                    
+                    if (result.state === 'prompt') {
+                        this.log('マイクの権限を要求しています...');
+                        // getUserMediaで権限を要求
+                        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                        stream.getTracks().forEach(track => track.stop()); // 一時的なストリームを停止
+                        this.microphonePermission = true;
+                        this.log('マイクの権限が許可されました');
+                        return;
+                    }
+                    
+                    if (result.state === 'denied') {
+                        throw new Error('マイクの権限が拒否されています。ブラウザの設定で許可してください。');
+                    }
+                    
+                } catch (error) {
+                    this.log(`マイク権限エラー: ${error.message}`);
+                    throw error;
+                }
+            }
+            
+            analyzeAudio() {
+                if (!this.isListening) return;
+                
+                this.analyser.getByteFrequencyData(this.dataArray);
+                
+                // 19kHz付近の周波数を検出
+                const sampleRate = this.audioContext.sampleRate;
+                const binWidth = sampleRate / this.analyser.fftSize;
+                const targetBin = Math.round(this.frequency / binWidth);
+                
+                // 周波数スペクトラムを可視化
+                this.visualizeSpectrum();
+                
+                // 19kHz付近の強度をチェック
+                const intensity = this.dataArray[targetBin];
+                const currentTime = Date.now();
+                
+                // 信号検出とパターン解析
+                this.detectSignalPattern(intensity, currentTime);
+                
+                requestAnimationFrame(() => this.analyzeAudio());
+            }
+            
+            detectSignalPattern(intensity, currentTime) {
+                const isSignalPresent = intensity > this.detectionThreshold;
+                
+                // 信号の状態変化を検出
+                if (this.detectionBuffer.length > 0) {
+                    const lastState = this.detectionBuffer[this.detectionBuffer.length - 1];
+                    const timeDiff = currentTime - lastState.time;
+                    
+                    // 状態が変化した場合（信号のON/OFF）
+                    if (lastState.signal !== isSignalPresent && timeDiff > 50) {
+                        this.detectionBuffer.push({
+                            signal: isSignalPresent,
+                            time: currentTime,
+                            duration: timeDiff
+                        });
+                        
+                        // ビットの判定
+                        this.processBit(lastState.signal, timeDiff);
+                    }
+                } else {
+                    // 初回の検出
+                    this.detectionBuffer.push({
+                        signal: isSignalPresent,
+                        time: currentTime,
+                        duration: 0
+                    });
+                }
+                
+                // バッファのクリーンアップ（古いデータを削除）
+                if (this.detectionBuffer.length > 20) {
+                    this.detectionBuffer.shift();
+                }
+                
+                // タイムアウト処理（信号が途切れた場合）
+                if (currentTime - this.lastDetectionTime > 2000) {
+                    this.resetPatternDetection();
+                }
+                
+                if (isSignalPresent) {
+                    this.lastDetectionTime = currentTime;
+                }
+            }
+            
+            processBit(wasSignalPresent, duration) {
+                // ビットの持続時間に基づいて判定
+                const expectedBitDuration = this.bitDuration;
+                const tolerance = 100; // 許容誤差
+                
+                if (wasSignalPresent && 
+                    Math.abs(duration - expectedBitDuration) < tolerance) {
+                    // '1' ビットを検出
+                    this.bitBuffer.push('1');
+                    this.log(`ビット検出: 1 (持続時間: ${duration}ms)`);
+                } else if (!wasSignalPresent && 
+                           Math.abs(duration - expectedBitDuration) < tolerance) {
+                    // '0' ビットを検出
+                    this.bitBuffer.push('0');
+                    this.log(`ビット検出: 0 (持続時間: ${duration}ms)`);
+                }
+                
+                // プリアンブルの検出
+                if (this.bitBuffer.length >= this.preamblePattern.length) {
+                    const recentBits = this.bitBuffer.slice(-this.preamblePattern.length).join('');
+                    
+                    if (recentBits === this.preamblePattern && !this.receivingPattern) {
+                        this.receivingPattern = true;
+                        this.receivedBits = '';
+                        this.log('プリアンブルを検出しました。パターン受信を開始します。');
+                    }
+                }
+                
+                // パターンの受信
+                if (this.receivingPattern && this.bitBuffer.length > this.preamblePattern.length) {
+                    const patternBits = this.bitBuffer.slice(this.preamblePattern.length);
+                    this.receivedBits = patternBits.join('');
+                    
+                    // 5ビットのパターンが完成した場合
+                    if (this.receivedBits.length >= 5) {
+                        const pattern = this.receivedBits.substring(0, 5);
+                        this.decodePattern(pattern);
+                        this.resetPatternDetection();
+                    }
+                }
+                
+                // バッファのクリーンアップ
+                if (this.bitBuffer.length > 15) {
+                    this.bitBuffer.shift();
+                }
+            }
+            
+            decodePattern(pattern) {
+                try {
+                    const effectId = parseInt(pattern, 2);
+                    
+                    if (effectId >= 0 && effectId < 32) {
+                        this.log(`エフェクト${effectId + 1}を検出しました (パターン: ${pattern})`);
+                        document.getElementById('detectedEffect').textContent = `FX${effectId + 1} (${pattern})`;
+                        
+                        // ここで実際のエフェクト処理を実行
+                        this.triggerEffect(effectId);
+                    } else {
+                        this.log(`無効なパターンです: ${pattern}`);
+                    }
+                } catch (error) {
+                    this.log(`パターンデコードエラー: ${error.message}`);
+                }
+            }
+            
+            triggerEffect(effectId) {
+                // エフェクトIDに基づいて実際のビジュアルエフェクトを実行
+                // この部分は実際のエフェクトシステムに応じて実装
+                this.log(`エフェクト${effectId + 1}を実行中...`);
+                
+                // クライアント側のUIを更新
+                const buttons = document.querySelectorAll('.effect-button');
+                buttons.forEach((button, index) => {
+                    button.classList.remove('active');
+                    if (index === effectId) {
+                        button.classList.add('active');
+                        setTimeout(() => button.classList.remove('active'), 2000);
+                    }
+                });
+            }
+            
+            resetPatternDetection() {
+                this.receivingPattern = false;
+                this.receivedBits = '';
+                this.bitBuffer = [];
+                this.detectionBuffer = [];
+            }
+            
+            visualizeSpectrum() {
+                const width = this.canvas.width;
+                const height = this.canvas.height;
+                
+                this.canvasCtx.fillStyle = '#000';
+                this.canvasCtx.fillRect(0, 0, width, height);
+                
+                const barWidth = width / this.dataArray.length;
+                let x = 0;
+                
+                for (let i = 0; i < this.dataArray.length; i++) {
+                    const barHeight = (this.dataArray[i] / 255) * height;
+                    
+                    // 19kHz付近を強調表示
+                    const sampleRate = this.audioContext.sampleRate;
+                    const binWidth = sampleRate / this.analyser.fftSize;
+                    const frequency = i * binWidth;
+                    
+                    if (frequency >= 18000 && frequency <= 20000) {
+                        this.canvasCtx.fillStyle = '#ff0000';
+                    } else {
+                        this.canvasCtx.fillStyle = '#00ff00';
+                    }
+                    
+                    this.canvasCtx.fillRect(x, height - barHeight, barWidth, barHeight);
+                    x += barWidth;
+                }
+            }
+            
+            stopListening() {
+                this.isListening = false;
+                this.resetPatternDetection();
+                document.getElementById('listeningStatus').textContent = '停止中';
+                document.getElementById('detectedEffect').textContent = 'なし';
+                this.log('音声受信を停止しました');
+                
+                // マイクストリームを停止
+                if (this.microphone && this.microphone.mediaStream) {
+                    this.microphone.mediaStream.getTracks().forEach(track => track.stop());
+                }
+            }
+            
+            updateUI() {
+                const buttons = document.querySelectorAll('.effect-button');
+                buttons.forEach((button, index) => {
+                    button.classList.toggle('active', index === this.currentEffect);
+                });
+                
+                const pattern = this.currentEffect !== null ? 
+                    this.currentEffect.toString(2).padStart(5, '0') : '未選択';
+                document.getElementById('currentPattern').textContent = pattern;
+            }
+            
+            log(message) {
+                const logElement = document.getElementById('log');
+                const timestamp = new Date().toLocaleTimeString();
+                logElement.innerHTML += `[${timestamp}] ${message}\n`;
+                logElement.scrollTop = logElement.scrollHeight;
+            }
+        }
+        
+        // システムを初期化
+        const audioSync = new AudioSyncSystem();
+    </script>
+</body>
+</html>

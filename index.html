@@ -333,7 +333,6 @@
 
                     oscillator.connect(gainNode);
                     gainNode.connect(this.audioContext.destination);
-                    gainNode.gain = 0;
                     
                     oscillator.frequency.value = frequency;
                     oscillator.type = 'sine';

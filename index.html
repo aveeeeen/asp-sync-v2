@@ -338,11 +338,11 @@
                     oscillator.frequency.value = frequency;
                     oscillator.type = 'sine';
                     
-                    oscillator.start();
                     gainNode.gain.setValueAtTime(0, currentTime);
                     gainNode.gain.linearRampToValueAtTime(amp , currentTime + 0.01);
                     gainNode.gain.setValueAtTime(amp, currentTime + duration / 1000 - 0.01);
-                    gainNode.gain.linearRampToValueAtTime(amp, currentTime + duration / 1000);ß
+                    gainNode.gain.linearRampToValueAtTime(amp, currentTime + duration / 1000);
+                    oscillator.start();
                     oscillator.stop(this.audioContext.currentTime + duration / 1000);
                     
                     setTimeout(resolve, duration);

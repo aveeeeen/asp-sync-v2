@@ -290,7 +290,7 @@
                     this.log(`パターン送信開始: ${pattern}`);
                     
                     // 同期用のプリアンブル（10101）を送信
-                    const preamble = '10101';
+                    const preamble = '11111';
                     await this.sendBits(preamble);
                     
                     // 実際のパターンを送信

@@ -739,7 +739,7 @@
                     const nyquist = CONFIG.SAMPLE_RATE / 2;
                     const baseBinIndex = Math.round(frequency / frequencyResolution);
                     
-                    if (binIndex < bufferLength) {
+                    if (baseBinIndex < bufferLength) {
                         //const intensity = dataArray[binIndex];
                         
                         // 周辺binの平均を取る（精度向上）
@@ -752,7 +752,7 @@
                         //     }
                         // }
                         
-                        const maxIntensity = -Infinity;
+                        let maxIntensity = -Infinity;
                         // ±2ビンの範囲で最大値を検索
                         const range = 2
                         for (let binOffset = -range; binOffset <= range; binOffset++) {

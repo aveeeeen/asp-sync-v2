@@ -511,6 +511,7 @@
         let hostGain = null;
         let clientAnalyser = null;
         let clientMicrophone = null;
+        let filter = null;
         let detectionInterval = null;
         let isHostActive = false;
         let isClientActive = false;
@@ -569,11 +570,18 @@
                 });
                 
                 clientMicrophone = audioContext.createMediaStreamSource(stream);
+                
+                filter = audioContext.createBiquadFilter()
+                filter.type = "highpass";
+                filter.frequency = 10000;
+                filter.gain = 40;
+                
                 clientAnalyser = audioContext.createAnalyser();
                 clientAnalyser.fftSize = CONFIG.FFT_SIZE;
                 clientAnalyser.smoothingTimeConstant = CONFIG.SMOOTHING;
                 
-                clientMicrophone.connect(clientAnalyser);
+                clientMicrophone.connect(filter);
+                filter.connect(clientAnalyser);
                 
                 showMainScreen();
                 updateStatus('clientStatus', 'クライアント準備完了', 'success');

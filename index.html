@@ -486,7 +486,7 @@
             SIGNAL_DURATION: 1.0,       // 信号継続時間
             SAMPLE_RATE: 44100,         // サンプリングレート
             FFT_SIZE: 8192,             // FFTサイズ
-            DETECTION_THRESHOLD: 0.008,  // 検出閾値
+            DETECTION_THRESHOLD: 0.005,  // 検出閾値
             SMOOTHING: 0.8,             // スムージング
             UPDATE_INTERVAL: 50         // 更新間隔(ms)
         };
@@ -735,7 +735,7 @@
                 
                 // 各チャンネルの強度をチェック
                 for (let channel = 0; channel < CONFIG.NUM_CHANNELS; channel++) {
-                    const frequency = getFrequencyForChannel(channel);
+                    const frequency = getFrequencyForChannel(channel) + 125;
                     const frequencyResolution = CONFIG.SAMPLE_RATE / (CONFIG.FFT_SIZE);
                     const baseBinIndex = Math.round(frequency / frequencyResolution);
                     

@@ -730,14 +730,18 @@
                 
                 let detectedChannels = [];
                 let channelIntensities = {};
+
+                const frequencyResolution = sampleRate / (this.analyser.fftSize);
                 
                 // 各チャンネルの強度をチェック
                 for (let channel = 0; channel < CONFIG.NUM_CHANNELS; channel++) {
                     const frequency = getFrequencyForChannel(channel);
                     const nyquist = CONFIG.SAMPLE_RATE / 2;
-                    const binIndex = Math.round((frequency / nyquist) * bufferLength);
+                    const binIndex = Math.round(frequency / frequencyResolution);
                     
                     if (binIndex < bufferLength) {
+                        //const intensity = dataArray[binIndex];
+                        
                         // 周辺binの平均を取る（精度向上）
                         // let intensity = 0;
                         // const range = 2;
@@ -747,16 +751,27 @@
                         //         intensity += dataArray[idx];
                         //     }
                         // }
-                        // intensity = (intensity / ((range * 2) + 1)) / 255.0;
+                        let maxMagnitude = -Infinity;
+                    
+                        // ±2ビンの範囲で最大値を検索
+                        const range = 2
+                        for (let binOffset = -range; binOffset <= range; binOffset++) {
+                            const binIndex = baseBinIndex + binOffset;
+                            if (binIndex >= 0 && binIndex < bufferLength) {
+                                const magnitude = dataArray[binIndex];
+                                maxMagnitude = Math.max(maxMagnitude, magnitude);
+                            }
+                        }
 
-                        const intensity = dataArray[binIndex];
+                        maxMagnitude = (maxMagnitude / ((range * 2) + 1)) / 255.0;
+
                         
                         // 閾値を超えた場合、チャンネルが検出されたとみなす
                         // if (magnitude > -60 + (sen * 20)) {
                         //     detectedChannels.push(i + 1);
                         // }
                         
-                        if (intensity > -60 + (CONFIG.DETECTION_THRESHOLD * 20)) {
+                        if (maxMagnitude > CONFIG.DETECTION_THRESHOLD) {
                             detectedChannels.push({
                                 channel: channel + 1, // 1-16
                                 frequency: frequency,

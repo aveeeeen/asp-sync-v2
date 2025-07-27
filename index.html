@@ -751,17 +751,20 @@
                         //         intensity += dataArray[idx];
                         //     }
                         // }
-                    
+                        
+                        const maxIntensity = -Infinity;
                         // ±2ビンの範囲で最大値を検索
                         const range = 2
                         for (let binOffset = -range; binOffset <= range; binOffset++) {
                             const binIndex = baseBinIndex + binOffset;
                             if (binIndex >= 0 && binIndex < bufferLength) {
                                 const intensity = dataArray[binIndex];
+                                maxIntensity = Math.max(maxIntensity, intensity);
                             }
                         }
 
-                        intensity = (intensity / ((range * 2) + 1)) / 255.0;
+
+                        maxIntensity = (maxIntensity / ((range * 2) + 1)) / 255.0;
 
                         
                         // 閾値を超えた場合、チャンネルが検出されたとみなす
@@ -769,13 +772,13 @@
                         //     detectedChannels.push(i + 1);
                         // }
                         
-                        if (intensity > CONFIG.DETECTION_THRESHOLD) {
+                        if (maxIntensity > CONFIG.DETECTION_THRESHOLD) {
                             detectedChannels.push({
                                 channel: channel + 1, // 1-16
                                 frequency: frequency,
-                                intensity: intensity
+                                intensity: maxIntensity
                             });
-                            channelIntensities[channel + 1] = intensity;
+                            channelIntensities[channel + 1] = maxIntensity;
                         }
                     }
                 }

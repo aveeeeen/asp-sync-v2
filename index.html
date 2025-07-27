@@ -467,8 +467,7 @@
             <!-- システム情報 -->
             <div class="system-info">
                 <div><strong>システム仕様:</strong></div>
-                <div>周波数帯域: 18000-19000Hz | チャンネル数: 16 | FFTサイズ: 8192</div>
-                <div>チャンネル間隔: 62.5Hz | 更新間隔: 50ms | 検出閾値: 0.25</div>
+                <div id="configData"></div>
             </div>
         </div>
         
@@ -620,6 +619,10 @@
         function showMainScreen() {
             document.getElementById('permissionScreen').style.display = 'none';
             document.getElementById('mainScreen').style.display = 'block';
+            const configElem = document.getElementById('configData');
+            configElem.innerHTML = `
+                周波数帯域: ${CONFIG.BASE_FREQ}-${CONFIG.BASE_FREQ + CONFIG.FREQ_RANGE}Hz | チャンネル数: 16 | FFTサイズ: ${CONFIG.FFT_SIZE}
+                更新間隔: ${CONFIG.UPDATE_INTERVAL}ms | 検出閾値: ${CONFIG.DETECTION_THRESHOLD}`
             createEffectButtons();
         }
         

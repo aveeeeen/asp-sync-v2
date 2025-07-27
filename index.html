@@ -737,7 +737,7 @@
                 for (let channel = 0; channel < CONFIG.NUM_CHANNELS; channel++) {
                     const frequency = getFrequencyForChannel(channel);
                     const nyquist = CONFIG.SAMPLE_RATE / 2;
-                    const binIndex = Math.round(frequency / frequencyResolution);
+                    const baseBinIndex = Math.round(frequency / frequencyResolution);
                     
                     if (binIndex < bufferLength) {
                         //const intensity = dataArray[binIndex];

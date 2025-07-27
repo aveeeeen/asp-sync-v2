@@ -570,7 +570,7 @@
                 
                 clientMicrophone = audioContext.createMediaStreamSource(stream);
                 
-                filter = audioContext.createBiquadFilter()
+                filter = audioContext.createBiquadFilter();
                 filter.type = "highpass";
                 filter.frequency = 10000;
                 filter.gain = 40;
@@ -579,8 +579,8 @@
                 clientAnalyser.fftSize = CONFIG.FFT_SIZE;
                 clientAnalyser.smoothingTimeConstant = CONFIG.SMOOTHING;
                 
-                clientMicrophone.connect(filter);
-                filter.connect(clientAnalyser);
+                clientMicrophone.connect(clientAnalyser);
+                //filter.connect(clientAnalyser);
                 
                 showMainScreen();
                 updateStatus('clientStatus', 'クライアント準備完了', 'success');

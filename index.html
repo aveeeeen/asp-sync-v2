@@ -735,7 +735,7 @@
                 for (let channel = 0; channel < CONFIG.NUM_CHANNELS; channel++) {
                     const frequency = getFrequencyForChannel(channel);
                     const nyquist = CONFIG.SAMPLE_RATE / 2;
-                    const binIndex = Math.round((frequency / nyquist) * bufferLength);
+                    const binIndex = Math.round(frequency * CONFIG.FFT_SIZE / nyquist);
                     
                     if (binIndex < bufferLength) {
                         // 周辺binの平均を取る（精度向上）

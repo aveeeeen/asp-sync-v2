@@ -477,7 +477,7 @@
     <script>
         // システム設定
         const CONFIG = {
-            BASE_FREQ: 1000,           // 基本周波数
+            BASE_FREQ: 18000,           // 基本周波数
             FREQ_RANGE: 1000,           // 周波数範囲
             NUM_CHANNELS: 16,           // 総チャンネル数
             INDEX_CHANNELS: 8,          // インデックス用チャンネル (1-8)
@@ -486,7 +486,7 @@
             SIGNAL_DURATION: 1.0,       // 信号継続時間
             SAMPLE_RATE: 44100,         // サンプリングレート
             FFT_SIZE: 8192,             // FFTサイズ
-            DETECTION_THRESHOLD: 0.005,  // 検出閾値
+            DETECTION_THRESHOLD: 0.001,  // 検出閾値
             SMOOTHING: 0.8,             // スムージング
             UPDATE_INTERVAL: 50         // 更新間隔(ms)
         };
@@ -580,7 +580,7 @@
                 clientAnalyser.smoothingTimeConstant = CONFIG.SMOOTHING;
                 
                 clientMicrophone.connect(clientAnalyser);
-                //filter.connect(clientAnalyser);
+                filter.connect(clientAnalyser);
                 
                 showMainScreen();
                 updateStatus('clientStatus', 'クライアント準備完了', 'success');
@@ -730,55 +730,33 @@
                 
                 let detectedChannels = [];
                 let channelIntensities = {};
-
-                
                 
                 // 各チャンネルの強度をチェック
                 for (let channel = 0; channel < CONFIG.NUM_CHANNELS; channel++) {
-                    const frequency = getFrequencyForChannel(channel) + 125;
-                    const frequencyResolution = CONFIG.SAMPLE_RATE / (CONFIG.FFT_SIZE);
-                    const baseBinIndex = Math.round(frequency / frequencyResolution);
+                    const frequency = getFrequencyForChannel(channel);
+                    const frequencyResolution = CONFIG.SAMPLE_RATE / CONFIG.FFT_SIZE;
+                    const baseBinIndex = Math.round(frequency / frequencyResolution) - Math.round(125 / frequencyResolution);
                     
                     if (baseBinIndex < bufferLength) {
-                        //const intensity = dataArray[binIndex];
                         
-                        // 周辺binの平均を取る（精度向上）
-                        // let intensity = 0;
-                        // const range = 2;
-                        // for (let i = -range; i <= range; i++) {
-                        //     const idx = binIndex + i;
-                        //     if (idx >= 0 && idx < bufferLength) {
-                        //         intensity += dataArray[idx];
-                        //     }
-                        // }
-                        
-                        let maxIntensity = -Infinity;
-                        // ±2ビンの範囲で最大値を検索
-                        const range = 2
-                        for (let binOffset = -range; binOffset <= range; binOffset++) {
-                            const binIndex = baseBinIndex + binOffset;
-                            if (binIndex >= 0 && binIndex < bufferLength) {
-                                const intensity = dataArray[binIndex];
-                                maxIntensity = Math.max(maxIntensity, intensity);
+                        let intensity = 0;
+                        const range = 2;
+                        for (let i = -range; i <= range; i++) {
+                            const idx = baseBinIndex + i;
+                            if (idx >= 0 && idx < bufferLength) {
+                                intensity += dataArray[idx];
                             }
                         }
 
-
-                        maxIntensity = (maxIntensity / ((range * 2) + 1)) / 255.0;
-
+                        intensity = intensity / 255.0;
                         
-                        // 閾値を超えた場合、チャンネルが検出されたとみなす
-                        // if (magnitude > -60 + (sen * 20)) {
-                        //     detectedChannels.push(i + 1);
-                        // }
-                        
-                        if (maxIntensity > CONFIG.DETECTION_THRESHOLD) {
+                        if (intensity > CONFIG.DETECTION_THRESHOLD) {
                             detectedChannels.push({
                                 channel: channel + 1, // 1-16
                                 frequency: frequency,
-                                intensity: maxIntensity
+                                intensity: intensity
                             });
-                            channelIntensities[channel + 1] = maxIntensity;
+                            channelIntensities[channel + 1] = intensity;
                         }
                     }
                 }

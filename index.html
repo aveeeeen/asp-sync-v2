@@ -723,7 +723,7 @@
         // デュアルトーン検出開始
         function startDualToneDetection() {
             const bufferLength = clientAnalyser.frequencyBinCount;
-            const dataArray = new Uint16Array(bufferLength);
+            const dataArray = new Uint8Array(bufferLength);
             
             detectionInterval = setInterval(() => {
                 clientAnalyser.getByteFrequencyData(dataArray);

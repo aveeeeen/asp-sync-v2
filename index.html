@@ -861,10 +861,10 @@
       // デュアルトーン検出開始
       function startDualToneDetection() {
         const bufferLength = clientAnalyser.frequencyBinCount;
-        const dataArray = new Float32Array(bufferLength);
+        const dataArray = new Uint8Array(bufferLength);
 
         detectionInterval = setInterval(() => {
-          clientAnalyser.getFloatFrequencyData(dataArray);
+          clientAnalyser.getByteFrequencyData(dataArray);
 
           let detectedChannels = [];
           let channelIntensities = {};
@@ -874,7 +874,7 @@
             const frequency = getFrequencyForChannel(channel);
             const frequencyResolution = CONFIG.SAMPLE_RATE / CONFIG.FFT_SIZE;
             const baseBinIndex = Math.round(
-              frequency / (CONFIG.FFT_SIZE / CONFIG.SAMPLE_RATE)
+              frequency * (CONFIG.FFT_SIZE / CONFIG.SAMPLE_RATE)
             ); // - Math.round(125 / frequencyResolution);
 
             if (baseBinIndex < bufferLength) {
@@ -887,13 +887,11 @@
                 }
               }
 
-              intensity = intensity / (range * 2 + 1);
-              
-              const noiseFloor = calculateNoiseFloor(dataArray, baseBinIndex);
+              intensity = intensity / (range * 2 + 1) / 255.0;
+
               console.log(intensity);
-              const dynamicThreshold = noiseFloor + (10 + CONFIG.DETECTION_THRESHOLD * 15);
               
-              if (intensity > dynamicThreshold) {
+              if (intensity > CONFIG.DETECTION_THRESHOLD) {
                 detectedChannels.push({
                   channel: channel + 1, // 1-16
                   frequency: frequency,
